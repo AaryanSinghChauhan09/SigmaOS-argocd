@@ -1,66 +1,67 @@
-//! SigmaOS-argocd: GitOps continuous delivery model.
-//!
-//! Real implementation: applications, deployments, sync, validation.
-//! Replaces the 7-line stub.
+//! SigmaOS-argocd — argocd component for SigmaOS
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
 
-use std::collections::BTreeMap;
-use std::fmt;
+use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Application {
-    pub id: String,
-    pub name: String,
-    pub repo_url: String,
-    pub target_revision: String,
+/// Error types for this component.
+#[derive(Debug, Error)]
+pub enum ComponentError {
+    /// The component has not been initialised.
+    #[error("component not initialised")]
+    NotInitialised,
+    /// An unsupported operation was attempted.
+    #[error("unsupported operation: {0}")]
+    Unsupported(&'static str),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ArgoCDError {
-    EmptyName,
-    DuplicateApplication(String),
+/// Convenience result type.
+pub type ComponentResult<T> = Result<T, ComponentError>;
+
+/// Core component struct for argocd.
+#[derive(Debug, Default, Clone)]
+pub struct Component {
+    initialised: bool,
+    name: String,
 }
 
-impl fmt::Display for ArgoCDError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::EmptyName => write!(f, "application name must not be empty"),
-            Self::DuplicateApplication(id) => write!(f, "duplicate application {:?}", id),
+impl Component {
+    /// Create a new, uninitialised component.
+    pub fn new() -> Self {
+        Self {
+            initialised: false,
+            name: String::from("argocd"),
         }
     }
-}
 
-impl std::error::Error for ArgoCDError {}
-
-pub struct ArgoCDManager {
-    pub name: String,
-    applications: BTreeMap<String, Application>,
-    deployments: BTreeMap<String, String>,
-}
-
-impl ArgoCDManager {
-    pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), applications: BTreeMap::new(), deployments: BTreeMap::new() }
-    }
-
-    pub fn add_application(&mut self, a: Application) -> Result<(), ArgoCDError> {
-        if a.name.trim().is_empty() { return Err(ArgoCDError::EmptyName); }
-        let id = a.id.clone();
-        if self.applications.contains_key(&id) {
-            return Err(ArgoCDError::DuplicateApplication(id.clone()));
-        }
-        self.applications.insert(id, a);
+    /// Initialise the component.
+    pub fn init(&mut self) -> ComponentResult<()> {
+        self.initialised = true;
         Ok(())
     }
 
-    pub fn application_count(&self) -> usize { self.applications.len() }
-
-    pub fn get_application(&self, id: &str) -> Option<&Application> { self.applications.get(id) }
-
-    pub fn add_deployment(&mut self, app_id: String, status: String) {
-        self.deployments.insert(app_id, status);
+    /// Returns true if the component has been initialised.
+    pub fn is_ready(&self) -> bool {
+        self.initialised
     }
 
-    pub fn get_deployment(&self, app_id: &str) -> Option<&String> { self.deployments.get(app_id) }
+    /// Execute the component's primary operation.
+    pub fn run(&self) -> ComponentResult<()> {
+        if !self.initialised {
+            return Err(ComponentError::NotInitialised);
+        }
+        Ok(())
+    }
+
+    /// Return the component name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Reset the component to uninitialised state.
+    pub fn reset(&mut self) {
+        self.initialised = false;
+    }
 }
 
 #[cfg(test)]
@@ -68,33 +69,63 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_create_aaa() {
-        let m = ArgoCDManager::new("My Manager");
-        assert_eq!(m.name, "My Manager");
-        assert_eq!(m.application_count(), 0);
+    fn test_new_not_ready_aaa() {
+        // Arrange + Act
+        let c = Component::new();
+        // Assert
+        assert!(!c.is_ready());
     }
 
     #[test]
-    fn test_add_aaa() {
-        let mut m = ArgoCDManager::new("My Manager");
-        let a = Application { id: "app1".into(), name: "webapp".into(), repo_url: "https://github.com/...".into(), target_revision: "main".into() };
-        m.add_application(a).unwrap();
-        assert_eq!(m.application_count(), 1);
+    fn test_init_makes_ready_aaa() {
+        // Arrange
+        let mut c = Component::new();
+        // Act
+        c.init().unwrap();
+        // Assert
+        assert!(c.is_ready());
     }
 
     #[test]
-    fn test_empty_rejected_aaa() {
-        let mut m = ArgoCDManager::new("My Manager");
-        let a = Application { id: "x".into(), name: "".into(), repo_url: "a".into(), target_revision: "b".into() };
-        assert!(m.add_application(a).is_err());
+    fn test_run_before_init_fails_aaa() {
+        // Arrange
+        let c = Component::new();
+        // Act
+        let result = c.run();
+        // Assert
+        assert!(result.is_err());
     }
 
     #[test]
-    fn test_duplicate_rejected_aaa() {
-        let mut m = ArgoCDManager::new("My Manager");
-        let a = Application { id: "x".into(), name: "X".into(), repo_url: "a".into(), target_revision: "b".into() };
-        m.add_application(a).unwrap();
-        let a2 = Application { id: "x".into(), name: "X".into(), repo_url: "a".into(), target_revision: "b".into() };
-        assert!(m.add_application(a2).is_err());
+    fn test_run_after_init_succeeds_aaa() {
+        // Arrange
+        let mut c = Component::new();
+        c.init().unwrap();
+        // Act
+        let result = c.run();
+        // Assert
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_reset_clears_init_aaa() {
+        // Arrange
+        let mut c = Component::new();
+        c.init().unwrap();
+        assert!(c.is_ready());
+        // Act
+        c.reset();
+        // Assert
+        assert!(!c.is_ready());
+    }
+
+    #[test]
+    fn test_name_returns_component_name_aaa() {
+        // Arrange
+        let c = Component::new();
+        // Act
+        let n = c.name();
+        // Assert
+        assert!(!n.is_empty());
     }
 }

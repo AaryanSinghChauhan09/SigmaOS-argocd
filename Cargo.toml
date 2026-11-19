@@ -1,8 +1,15 @@
 [package]
-name = "sigmaos_argocd"
+name = "SigmaOS-argocd"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+description = "SigmaOS sigmaos_argocd component"
 
 [lib]
 name = "sigmaos_argocd"
 path = "src/lib.rs"
+
+[dependencies]
+thiserror = "1"
+
+[dev-dependencies]
